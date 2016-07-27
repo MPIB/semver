@@ -1,9 +1,9 @@
+# Highly modified (hacked) version of https://github.com/steveklabnik/semver to address [#59](https://github.com/steveklabnik/semver/issues/59) and other oddities related to chocolatey versioning
+
 semver
 ======
 
 Semantic version parsing and comparison.
-
-[![Build Status](https://api.travis-ci.org/steveklabnik/semver.svg?branch=master)](https://travis-ci.org/steveklabnik/semver)
 
 [Documentation](https://steveklabnik.github.io/semver)
 

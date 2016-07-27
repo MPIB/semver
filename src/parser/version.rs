@@ -8,10 +8,10 @@ use version::Identifier;
 /// Try to parse a version
 ///
 /// If there's an error, then you just get (). for now.
-pub fn try_parse(i: &[u8]) -> Result<Version, String> {
+pub fn try_parse(i: &[u8], drop_rest: bool) -> Result<Version, String> {
     match version(i) {
         IResult::Done(rest, version) => {
-            if rest.len() > 0 {
+            if rest.len() > 0 && !drop_rest {
                 let err = format!("Failed with unparsed input: '{}'",
                                   String::from_utf8(rest.to_vec()).unwrap());
                 Err(err)

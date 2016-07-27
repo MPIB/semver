@@ -170,7 +170,7 @@ extern crate nom;
 
 pub use version::{Version, Identifier, SemVerError};
 pub use version::Identifier::{Numeric, AlphaNumeric};
-pub use version_req::{VersionReq, ReqParseError};
+pub use version_req::{VersionReq, ReqParseError, Predicate, PredBuilder, Op, WildcardVersion};
 
 // SemVer-compliant versions.
 mod version;

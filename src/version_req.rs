@@ -38,27 +38,41 @@ enum VersionComponent {
     WildcardVersionComponent,
 }
 
-#[derive(Clone, PartialEq, Debug)]
-enum WildcardVersion {
+/// Determines which Part of the Version is wildcarded
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum WildcardVersion {
+    /// *
     Major,
+    /// 1.*
     Minor,
+    /// 1.0.*
     Patch,
 }
 
-#[derive(PartialEq,Clone,Debug)]
-enum Op {
-    Ex, // Exact
-    Gt, // Greater than
-    GtEq, // Greater than or equal to
-    Lt, // Less than
-    LtEq, // Less than or equal to
-    Tilde, // e.g. ~1.0.0
-    Compatible, // compatible by definition of semver, indicated by ^
-    Wildcard(WildcardVersion), // x.y.*, x.*, *
+/// Operation a Predicate uses for comparing
+#[derive(PartialEq,Clone,Copy,Debug)]
+pub enum Op {
+    /// Exact
+    Ex,
+    /// Greater than
+    Gt,
+    /// Greater than or equal to
+    GtEq,
+    /// Less than
+    Lt,
+    /// Less than or equal to
+    LtEq,
+    /// e.g. ~1.0.0
+    Tilde,
+    /// compatible by definition of semver, indicated by ^
+    Compatible,
+    /// x.y.*, x.*, *
+    Wildcard(WildcardVersion),
 }
 
+/// Predicate used by VersionReq
 #[derive(PartialEq,Clone,Debug)]
-struct Predicate {
+pub struct Predicate {
     op: Op,
     major: u64,
     minor: Option<u64>,
@@ -66,13 +80,20 @@ struct Predicate {
     pre: Vec<Identifier>,
 }
 
-struct PredBuilder {
-    op: Option<Op>,
-    major: Option<u64>,
-    minor: Option<u64>,
-    patch: Option<u64>,
-    pre: Vec<Identifier>,
-    has_pre: bool,
+/// Predicate Factory
+pub struct PredBuilder {
+    /// Operation for matching
+    pub op: Option<Op>,
+    /// match major
+    pub major: Option<u64>,
+    /// match minor
+    pub minor: Option<u64>,
+    /// match patch
+    pub patch: Option<u64>,
+    /// match pre's
+    pub pre: Vec<Identifier>,
+    /// match pre
+    pub has_pre: bool,
 }
 
 /// A `ReqParseError` is returned from methods which parse a string into a `VersionReq`. Each
@@ -118,6 +139,14 @@ impl Error for ReqParseError {
 }
 
 impl VersionReq {
+
+    /// `new(predicates: Vec<Predicate>)` is a factory that creates
+    pub fn new(predicates: &[Predicate]) -> VersionReq {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(predicates);
+        VersionReq { predicates: vec }
+    }
+
     /// `any()` is a factory method which creates a `VersionReq` with no constraints. In other
     /// words, any version will match against it.
     ///
@@ -249,6 +278,12 @@ impl VersionReq {
 
         self.predicates.iter().all(|p| p.matches(version)) &&
         self.predicates.iter().any(|p| p.pre_tag_is_compatible(version))
+    }
+
+    /// `predicates()` gives a list of Predicates representing this requirement
+    pub fn predicates(&self) -> Vec<Predicate>
+    {
+        self.predicates.clone()
     }
 }
 
@@ -425,10 +460,89 @@ impl Predicate {
             _ => false,  // unreachable
         }
     }
+
+    /// get operation of predicate
+    pub fn operation(&self) -> Op
+    {
+        self.op
+    }
+
+    /// get major version of predicate
+    pub fn major(&self) -> &u64
+    {
+        &self.major
+    }
+
+    /// get minor version of predicate, if exists
+    pub fn minor(&self) -> Option<&u64>
+    {
+        self.minor.as_ref()
+    }
+
+    /// get patch version of predicate, if exists
+    pub fn patch(&self) -> Option<&u64>
+    {
+        self.patch.as_ref()
+    }
+
+    /// get prerlease description of predicate, if exists
+    pub fn pre(&self) -> Option<String>
+    {
+        if !self.pre.is_empty() {
+            let mut format = String::new();
+            format.push_str("-");
+            for (i, x) in self.pre.iter().enumerate() {
+                if i != 0 {
+                    format.push_str(".");
+                }
+                format.push_str(&format!("{}", x));
+            }
+            Some(format)
+        } else {
+            None
+        }
+    }
+
+    /// get a full qualified version representing the lowest possible version of the version string,
+    /// no matter what the operation is. Basically appending .0 where necessary.
+    pub fn min_version(&self) -> Version
+    {
+        Version {
+            major: self.major,
+            minor: self.minor.unwrap_or(0),
+            patch: self.patch.unwrap_or(0),
+            pre: self.pre.clone(),
+            build: vec![]
+        }
+    }
+
+    /// get version string without operation
+    pub fn version_str(&self) -> String
+    {
+        let mut format = String::new();
+        format.push_str(&format!("{}", self.major));
+        if self.minor.is_some() {
+            format.push_str(&format!(".{}", self.minor.unwrap()));
+            if self.patch.is_some() {
+                format.push_str(&format!(".{}", self.patch.unwrap()));
+                if self.pre.len() > 0 {
+                    format.push_str("-");
+                    for (i, ident) in self.pre.iter().enumerate() {
+                        if i != 0 {
+                            format.push_str(".");
+                        }
+                        format.push_str(&format!("{}", ident));
+                    }
+                }
+            }
+        }
+        format
+    }
 }
 
 impl PredBuilder {
-    fn new() -> PredBuilder {
+    /// construct new PredBuilder
+    pub fn new() -> PredBuilder {
         PredBuilder {
             op: None,
             major: None,
@@ -439,7 +553,19 @@ impl PredBuilder {
         }
     }
 
-    fn set_sigil(&mut self, sigil: &str) -> Result<(), ReqParseError> {
+    /// set operation through `Op` enum
+    pub fn set_op(&mut self, op: Op) -> Result<(), ReqParseError> {
+        if self.op.is_some() {
+            return Err(OpAlreadySet);
+        }
+
+        self.op = Some(op);
+
+        Ok(())
+    }
+
+    /// set operation through sigil string
+    pub fn set_sigil(&mut self, sigil: &str) -> Result<(), ReqParseError> {
         if self.op.is_some() {
             return Err(OpAlreadySet);
         }
@@ -452,6 +578,15 @@ impl PredBuilder {
         Ok(())
     }
 
+    /// set version attributes from `Version`
+    pub fn set_version(&mut self, version: &Version) {
+        self.major = Some(version.major);
+        self.minor = Some(version.minor);
+        self.patch = Some(version.patch);
+        self.pre = version.pre.clone();
+    }
+
+    /// set version through version string
     fn set_version_part(&mut self, part: &str) -> Result<(), ReqParseError> {
         if self.op.is_none() {
             // If no op is specified, then the predicate is an exact match on
@@ -492,7 +627,7 @@ impl PredBuilder {
 
     /// Validates that a version predicate can be created given the present
     /// information.
-    fn build(self) -> Result<Predicate, ReqParseError> {
+    pub fn build(self) -> Result<Predicate, ReqParseError> {
         let op = match self.op {
             Some(ref x) => x.clone(),
             None => return Err(InvalidVersionRequirement),
